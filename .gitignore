@@ -1,0 +1,14 @@
+# downloaded data (see docs/DATASET.md)
+data/
+*.zip
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+# editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

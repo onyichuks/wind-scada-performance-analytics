@@ -1,0 +1,66 @@
+{
+  "data": {
+    "turbines": 4,
+    "period_utc": [
+      "2014-01-01 00:00:00+00:00",
+      "2015-12-31 23:50:00+00:00"
+    ],
+    "intervals": 420480,
+    "duplicates_removed": 48,
+    "secondary_values_blanked": {
+      "pitch_deg": 43,
+      "temp_c": 34,
+      "wind_dir_deg": 0
+    },
+    "valid_pct": 99.38,
+    "reference_air_density_kg_m3": 1.1952,
+    "normal_operation_pct_of_valid": 74.4
+  },
+  "production_2014_2015_mwh": {
+    "actual_scada": 24646.6,
+    "lost_total": 365.7,
+    "lost_by_class": {
+      "downtime": 276.7,
+      "curtailment": 4.5,
+      "derate": 45.4,
+      "suspected icing": 8.6,
+      "underperformance": 30.4
+    },
+    "lost_pct_of_potential": 1.46,
+    "energy_availability_pct": 98.89,
+    "plant_reported_availability_loss": 307.8,
+    "plant_reported_curtailment_loss": 17.0,
+    "revenue_meter_net": 24133.4,
+    "electrical_losses": {
+      "scada_mwh": 24374.0,
+      "meter_mwh": 23865.0,
+      "electrical_loss_pct": 2.09,
+      "intervals_compared": 103735
+    }
+  },
+  "derates": {
+    "events": 152,
+    "event_lost_mwh": 6.8,
+    "peak_hour_local": 13,
+    "share_above_30c_pct": 8.72,
+    "share_10_to_15c_pct": 0.5
+  },
+  "aep": {
+    "p50_gwh": 12.59,
+    "p90_long_term_gwh": 12.06,
+    "p90_one_year_gwh": 11.15,
+    "p90_ten_year_gwh": 11.92,
+    "long_term_uncertainty_pct": 3.24,
+    "interannual_variability_pct": 8.34,
+    "availability_and_curtailment_loss_pct": 1.33,
+    "p50_by_product_gwh": {
+      "era5": 12.48,
+      "merra2": 12.67
+    },
+    "capacity_factor_pct": 17.5,
+    "draws": 10000,
+    "openoa_p50_gwh": 12.27,
+    "openoa_p90_gwh": 10.81,
+    "difference_vs_openoa_pct": 2.6
+  }
+}

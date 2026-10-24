@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>La Haute Borne Performance</title>
+<meta name="description" content="Interactive wind farm SCADA performance review: power curves, lost production, recurring derates and long-term P50 and P90 energy for the La Haute Borne wind farm, built on public ENGIE data.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: control-room review sheet. Summary strip, sticky filter rail, then stacked analysis panels that each lead with one plain finding. */
+:root {
+  --bg: #f3f6f8;
+  --surface: #ffffff;
+  --surface-2: #eaf0f4;
+  --ink: #0f1a24;
+  --ink-2: #475665;
+  --ink-3: #75838f;
+  --line: #d6dee5;
+  --accent: #1c5cab;
+  --accent-ink: #ffffff;
+  --accent-soft: #dce8f7;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+  --muted-point: #c3ccd4;
+  --seq-0: #cde2fb; --seq-1: #86b6ef; --seq-2: #3987e5; --seq-3: #1c5cab; --seq-4: #0d366b;
+  --font-display: "Archivo", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1318; --surface: #141c24; --surface-2: #1b252f; --ink: #e6edf3; --ink-2: #a8b5c2; --ink-3: #7b8996;
+    --line: #283440; --accent: #6aa5ee; --accent-ink: #0d1318; --accent-soft: #1b3150;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+    --muted-point: #3a4653;
+    --seq-0: #184f95; --seq-1: #256abf; --seq-2: #3987e5; --seq-3: #6da7ec; --seq-4: #b7d3f6;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1318; --surface: #141c24; --surface-2: #1b252f; --ink: #e6edf3; --ink-2: #a8b5c2; --ink-3: #7b8996;
+  --line: #283440; --accent: #6aa5ee; --accent-ink: #0d1318; --accent-soft: #1b3150;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+  --muted-point: #3a4653;
+  --seq-0: #184f95; --seq-1: #256abf; --seq-2: #3987e5; --seq-3: #6da7ec; --seq-4: #b7d3f6;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Header */
+.top { background: var(--surface); border-bottom: 1px solid var(--line); }
+.top .wrap { padding-block: 28px 22px; display: grid; gap: 14px; }
+.eyebrow { font-family: var(--font-data); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.top h1 { font-size: clamp(28px, 4vw, 42px); font-weight: 750; font-stretch: 88%; line-height: 1.05; }
+.lede { max-width: 72ch; color: var(--ink-2); margin: 0; }
+.links { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 14px; background: var(--surface); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn:hover { border-color: var(--accent); }
+
+/* KPI strip */
+.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-top: 22px; }
+.kpi { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
+.kpi .label { font-size: 13px; color: var(--ink-2); }
+.kpi .value { font-family: var(--font-display); font-size: 28px; font-weight: 700; font-stretch: 90%; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.kpi .value small { font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--ink-2); margin-left: 3px; }
+.kpi .note { font-size: 12px; color: var(--ink-3); }
+.kpi .scope { display: inline-block; font-family: var(--font-data); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+
+/* Filters */
+.filters { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); margin-top: 22px; }
+.filters .wrap { padding-block: 12px; display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: end; }
+.fgroup { display: grid; gap: 6px; min-width: 0; }
+.fgroup > .flabel { font-size: 12px; font-weight: 600; color: var(--ink-2); letter-spacing: 0.02em; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.chip span { display: inline-block; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 14px; font-family: var(--font-data); cursor: pointer; user-select: none; }
+.chip input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+select { font: inherit; font-size: 14px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.period { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.period span { color: var(--ink-3); font-size: 13px; }
+.reset { font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink-2); cursor: pointer; }
+.reset:hover { color: var(--ink); border-color: var(--accent); }
+
+/* Panels */
+main .wrap { padding-block: 26px 40px; display: grid; gap: 22px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; display: grid; gap: 14px; min-width: 0; }
+.panel header { display: grid; gap: 4px; }
+.panel h2 { font-size: 22px; font-weight: 700; font-stretch: 92%; }
+.finding { margin: 0; color: var(--ink-2); max-width: 80ch; }
+.finding b { color: var(--ink); font-weight: 600; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.chart { width: 100%; min-height: 300px; }
+.chart.tall { min-height: 360px; }
+.chart.short { min-height: 230px; }
+.subhead { font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 0 0 2px; }
+.tag { display: inline-block; font-family: var(--font-data); font-size: 11px; padding: 2px 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+
+/* Events table */
+.events { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.tablebox { overflow: auto; max-height: 420px; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { position: sticky; top: 0; background: var(--surface-2); font-weight: 600; color: var(--ink-2); font-size: 12px; z-index: 1; }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--surface-2); }
+tbody tr.sel { background: var(--accent-soft); }
+tbody tr.nodata { cursor: default; color: var(--ink-3); }
+.rowbtn { all: unset; cursor: pointer; font-family: var(--font-data); }
+.pvals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.pval { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.pval .k { font-size: 12px; color: var(--ink-2); }
+.pval .v { font-family: var(--font-display); font-size: 22px; font-weight: 700; font-stretch: 90%; font-variant-numeric: tabular-nums; }
+details { border-top: 1px solid var(--line); padding-top: 12px; }
+summary { cursor: pointer; font-weight: 600; }
+.method { columns: 2 340px; column-gap: 28px; color: var(--ink-2); font-size: 15px; }
+.method p { margin: 0 0 10px; break-inside: avoid; }
+footer { color: var(--ink-3); font-size: 13px; }
+footer .wrap { padding-block: 0 36px; display: grid; gap: 6px; }
+
+@media (max-width: 980px) {
+  .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .events { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pvals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filters { position: static; }
+  .panel { padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="eyebrow">Wind SCADA performance review · public data · 2014 to 2015</div>
+    <h1>La Haute Borne wind farm performance</h1>
+    <p class="lede">Four Senvion MM82 turbines (2.05 MW each, 80 m hub, 82 m rotor) in north-eastern France. This review turns two years of 10-minute SCADA data into power curves, lost production by cause, recurring derates and a long-term corrected P50 and P90 energy estimate. Use the filters to look at any turbine, period or derate threshold.</p>
+    <div class="links">
+      <a class="btn primary" href="{{REPO_URL}}" target="_blank" rel="noopener">View the code on GitHub</a>
+      <a class="btn" href="{{REPO_URL}}/blob/main/docs/DATASET.md" target="_blank" rel="noopener">About the dataset</a>
+      <a class="btn" href="#method">How it was calculated</a>
+    </div>
+    <div class="kpis" id="kpis"></div>
+  </div>
+</header>
+
+<section class="filters" aria-label="Filters">
+  <div class="wrap">
+    <div class="fgroup">
+      <span class="flabel" id="lbl-turbines">Turbines</span>
+      <div class="chips" id="turbines" role="group" aria-labelledby="lbl-turbines"></div>
+    </div>
+    <div class="fgroup">
+      <span class="flabel">Period</span>
+      <div class="period">
+        <select id="from" aria-label="From month"></select><span>to</span><select id="to" aria-label="To month"></select>
+      </div>
+    </div>
+    <div class="fgroup">
+      <span class="flabel" id="lbl-th">Derate threshold (pitch above normal)</span>
+      <div class="chips" id="threshold" role="radiogroup" aria-labelledby="lbl-th"></div>
+    </div>
+    <button class="reset" id="reset" type="button">Reset filters</button>
+  </div>
+</section>
+
+<main>
+  <div class="wrap">
+    <section class="panel" id="losses">
+      <header>
+        <h2>Where production was lost</h2>
+        <p class="finding" id="f-losses"></p>
+      </header>
+      <div class="grid2">
+        <div><p class="subhead">Lost energy by turbine and cause (MWh)</p><div class="chart" id="c-loss-turbine"></div></div>
+        <div><p class="subhead">Lost energy by month and cause (MWh)</p><div class="chart" id="c-loss-month"></div></div>
+      </div>
+    </section>
+
+    <section class="panel" id="derates">
+      <header>
+        <h2>Recurring derates</h2>
+        <p class="finding" id="f-derates"></p>
+      </header>
+      <div class="grid2">
+        <div><p class="subhead">Share of producing intervals in derate, by hour of day (local time)</p><div class="chart short" id="c-rec-hour"></div></div>
+        <div><p class="subhead">Share of producing intervals in derate, by outdoor temperature</p><div class="chart short" id="c-rec-temp"></div></div>
+      </div>
+      <div class="events">
+        <div>
+          <p class="subhead">Derate events, largest lost energy first <span class="tag" id="ev-count"></span></p>
+          <div class="tablebox">
+            <table id="ev-table">
+              <thead><tr><th>Turbine</th><th>Start (local)</th><th class="r">Hours</th><th class="r">Wind m/s</th><th class="r">Temp C</th><th class="r">Lost MWh</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div><p class="subhead" id="ev-title">Select an event to see power, wind and pitch</p><div class="chart tall" id="c-event"></div></div>
+      </div>
+    </section>
+
+    <section class="panel" id="curves">
+      <header>
+        <h2>Power curves</h2>
+        <p class="finding" id="f-curves"></p>
+      </header>
+      <div class="chart tall" id="c-curve"></div>
+    </section>
+
+    <section class="panel" id="aep">
+      <header>
+        <h2>Long-term energy: P50 and P90</h2>
+        <p class="finding" id="f-aep"></p>
+      </header>
+      <div class="pvals" id="pvals"></div>
+      <div class="grid2">
+        <div><p class="subhead">Monthly plant energy against reanalysis wind speed</p><div class="chart" id="c-reg"></div></div>
+        <div><p class="subhead">Distribution of 10,000 Monte Carlo estimates (GWh per year)</p><div class="chart" id="c-hist"></div></div>
+      </div>
+    </section>
+
+    <section class="panel" id="quality">
+      <header>
+        <h2>Data quality</h2>
+        <p class="finding" id="f-quality"></p>
+      </header>
+      <div class="chart short" id="c-quality"></div>
+    </section>
+
+    <section class="panel" id="method">
+      <header><h2>How it was calculated</h2></header>
+      <div class="method">
+        <p><b>Data checks.</b> Timestamps are converted to UTC and duplicate records around daylight saving changes are removed. Intervals with missing or implausible power or wind speed, or a wind speed frozen for an hour or more, are excluded. Implausible pitch and temperature values are blanked.</p>
+        <p><b>Power curves.</b> Wind speed is normalised to the site mean air density (ERA5 density at 100 m) with the cube-root rule used for pitch-regulated turbines. Each turbine's reference curve is the median power in 0.5 m/s bins, built only from normal operation: producing, no plant availability or curtailment loss, normal pitch for the wind speed, and within a robust band of the bin median.</p>
+        <p><b>Lost production.</b> Every 10-minute interval is classed as downtime, curtailment, derate, suspected icing, underperformance or normal. Lost energy is expected power minus actual power, counted only for the five loss classes. A derate means pitch above the turbine's normal pitch for that wind speed by more than the selected threshold, with power below 90 percent of expected.</p>
+        <p><b>Derate events.</b> Consecutive derate intervals on one turbine form an event (gaps up to 20 minutes are bridged; events under 30 minutes are dropped). Recurrence is measured by hour of day and outdoor temperature to separate operational patterns from random faults.</p>
+        <p><b>Long-term energy.</b> Monthly revenue meter energy, grossed up for reported availability and curtailment losses, is regressed on monthly ERA5 and MERRA-2 wind speed and applied to 20 years of reanalysis. A 10,000 draw Monte Carlo varies the reanalysis product, meter and loss errors, the regression (bootstrapped months) and the long-term years. Net AEP subtracts measured availability and curtailment losses.</p>
+        <p><b>Cross-checks.</b> The P50 is compared with NREL's open-source OpenOA reference implementation on the same data, and the estimated downtime loss is compared with the availability loss the plant itself reported.</p>
+        <p><b>Limits.</b> There is no warranted power curve in the open data, so turbines are compared with their own normal operation. Two years of operation limit the long-term regression. Nacelle wind speed is affected by the rotor, so power curves here are for monitoring and loss estimation, not for warranty testing.</p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Analysis and dashboard by Onyi Chuks. Source code and full method: <a href="{{REPO_URL}}" target="_blank" rel="noopener">{{REPO_LABEL}}</a>.</span>
+    <span>Data: La Haute Borne wind farm open data published by ENGIE under the Etalab Open Licence 2.0, as packaged in NREL's OpenOA example data. ERA5 and MERRA-2 reanalysis as supplied with that package.</span>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script>
+const D = /*__DATA__*/null;
+(function () {
+  const M = D.meta, CLASSES = M.loss_classes, MONTHS = M.months, TURB = M.turbines;
+  const CLASS_LABEL = { "downtime": "Downtime", "curtailment": "Curtailment", "derate": "Derate", "suspected icing": "Suspected icing", "underperformance": "Underperformance" };
+  const state = { turbines: new Set(TURB), from: 0, to: MONTHS.length - 1, th: String(M.default_threshold), event: null };
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const seriesColor = (i) => css("--s" + (i + 1));
+  const fmt = (v, d = 0) => (v == null || !isFinite(v)) ? "n/a" : v.toLocaleString("en-CA", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const monthLabel = (m) => { const [y, mo] = m.split("-"); return new Date(+y, +mo - 1, 1).toLocaleString("en-CA", { month: "short", year: "numeric" }); };
+  const S = D.summary || {};
+  const CONFIG = { displaylogo: false, responsive: true, modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d", "toggleSpikelines", "hoverCompareCartesian"] };
+
+  function baseLayout(extra) {
+    const line = css("--line");
+    const axis = { gridcolor: line, linecolor: line, zerolinecolor: line, tickfont: { color: css("--ink-2") }, title: { font: { color: css("--ink-2") } }, automargin: true };
+    const layout = {
+      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+      font: { family: css("--font-body"), color: css("--ink-2"), size: 12 },
+      margin: { l: 56, r: 12, t: 8, b: 40 },
+      xaxis: { ...axis }, yaxis: { ...axis },
+      legend: { orientation: "h", x: 0, y: -0.22, font: { color: css("--ink-2") } },
+      hoverlabel: { bgcolor: css("--surface"), bordercolor: css("--line"), font: { color: css("--ink"), family: css("--font-body") } },
+      bargap: 0.25,
+    };
+    for (const k in (extra || {})) {
+      if (layout[k] && typeof layout[k] === "object" && !Array.isArray(layout[k])) layout[k] = { ...layout[k], ...extra[k] };
+      else layout[k] = extra[k];
+    }
+    return layout;
+  }
+  const draw = (id, traces, layout) => Plotly.react(id, traces, baseLayout(layout), CONFIG);
+
+  // ---------- filters ----------
+  function buildFilters() {
+    const tBox = document.getElementById("turbines");
+    const all = document.createElement("label"); all.className = "chip";
+    all.innerHTML = '<input type="checkbox" id="t-all"><span>All</span>'; tBox.appendChild(all);
+    TURB.forEach((t) => {
+      const l = document.createElement("label"); l.className = "chip";
+      l.innerHTML = `<input type="checkbox" id="t-${t}" value="${t}"><span>${t}</span>`; tBox.appendChild(l);
+    });
+    tBox.addEventListener("change", (e) => {
+      const el = e.target;
+      if (el.id === "t-all") { state.turbines = new Set(TURB); }
+      else {
+        if (state.turbines.size === TURB.length) state.turbines = new Set([el.value]);
+        else if (el.checked) state.turbines.add(el.value);
+        else if (state.turbines.size > 1) state.turbines.delete(el.value);
+      }
+      state.event = null; syncFilters(); render();
+    });
+    const from = document.getElementById("from"), to = document.getElementById("to");
+    MONTHS.forEach((m, i) => { from.add(new Option(monthLabel(m), i)); to.add(new Option(monthLabel(m), i)); });
+    from.addEventListener("change", () => { state.from = +from.value; if (state.from > state.to) state.to = state.from; state.event = null; syncFilters(); render(); });
+    to.addEventListener("change", () => { state.to = +to.value; if (state.to < state.from) state.from = state.to; state.event = null; syncFilters(); render(); });
+    const th = document.getElementById("threshold");
+    M.thresholds.forEach((v) => {
+      const l = document.createElement("label"); l.className = "chip";
+      l.innerHTML = `<input type="radio" name="th" id="th-${String(v).replace('.', '-')}" value="${v}"><span>${v.toFixed(1)} deg</span>`; th.appendChild(l);
+    });
+    th.addEventListener("change", (e) => { state.th = String(parseFloat(e.target.value)); state.event = null; render(); });
+    document.getElementById("reset").addEventListener("click", () => {
+      state.turbines = new Set(TURB); state.from = 0; state.to = MONTHS.length - 1; state.th = String(M.default_threshold); state.event = null; syncFilters(); render();
+    });
+    syncFilters();
+  }
+  function syncFilters() {
+    const allOn = state.turbines.size === TURB.length;
+    document.getElementById("t-all").checked = allOn;
+    TURB.forEach((t) => { document.getElementById("t-" + t).checked = !allOn && state.turbines.has(t); });
+    document.getElementById("from").value = state.from; document.getElementById("to").value = state.to;
+    M.thresholds.forEach((v) => { document.getElementById("th-" + String(v).replace(".", "-")).checked = String(v) === state.th || v.toFixed(1) === parseFloat(state.th).toFixed(1); });
+  }
+  const scenario = () => D.scenarios[state.th] || D.scenarios[String(parseFloat(state.th))] || D.scenarios[parseFloat(state.th).toFixed(1)];
+  const inRange = (month) => { const i = MONTHS.indexOf(month); return i >= state.from && i <= state.to; };
+  const selTurb = () => TURB.filter((t) => state.turbines.has(t));
+  const periodText = () => (state.from === 0 && state.to === MONTHS.length - 1) ? "2014 to 2015" : `${monthLabel(MONTHS[state.from])} to ${monthLabel(MONTHS[state.to])}`;
+  const turbText = () => state.turbines.size === TURB.length ? "all four turbines" : selTurb().join(", ");
+
+  // ---------- computations ----------
+  function lossTotals() {
+    const sc = scenario(), dates = sc.daily.dates;
+    const keep = dates.map((d) => inRange(d.slice(0, 7)));
+    const byTurb = {}, byMonth = {};
+    MONTHS.forEach((m) => { byMonth[m] = Object.fromEntries(CLASSES.map((c) => [c, 0])); });
+    selTurb().forEach((t) => {
+      const e = sc.daily[t]; const row = { actual: 0 }; CLASSES.forEach((c) => (row[c] = 0));
+      for (let i = 0; i < dates.length; i++) {
+        if (!keep[i]) continue;
+        row.actual += e.actual[i];
+        const m = dates[i].slice(0, 7);
+        CLASSES.forEach((c) => { row[c] += e[c][i]; byMonth[m][c] += e[c][i]; });
+      }
+      byTurb[t] = row;
+    });
+    const tot = { actual: 0 }; CLASSES.forEach((c) => (tot[c] = 0));
+    Object.values(byTurb).forEach((r) => { tot.actual += r.actual; CLASSES.forEach((c) => (tot[c] += r[c])); });
+    tot.lost = CLASSES.reduce((a, c) => a + tot[c], 0);
+    tot.potential = tot.actual + tot.lost;
+    return { byTurb, byMonth, tot };
+  }
+  function recurrence() {
+    const rec = scenario().recurrence;
+    const hh = Array(24).fill(0), hn = Array(24).fill(0), bh = Array(M.temp_labels.length).fill(0), bn = Array(M.temp_labels.length).fill(0);
+    selTurb().forEach((t) => {
+      const r = rec[t];
+      MONTHS.forEach((m, mi) => {
+        if (mi < state.from || mi > state.to) return;
+        for (let h = 0; h < 24; h++) { hh[h] += r.hour_hits[mi][h]; hn[h] += r.hour_n[mi][h]; }
+        for (let b = 0; b < bh.length; b++) { bh[b] += r.band_hits[mi][b]; bn[b] += r.band_n[mi][b]; }
+      });
+    });
+    const pct = (a, n) => a.map((v, i) => (n[i] >= 30 ? (100 * v) / n[i] : null));
+    return { hour: pct(hh, hn), band: pct(bh, bn), bandN: bn };
+  }
+
+  // ---------- render ----------
+  function renderKpis(lt) {
+    const aep = D.aep, el = S.production_2014_2015_mwh || {};
+    const avail = lt.tot.potential ? 100 * (1 - lt.tot.downtime / lt.tot.potential) : null;
+    const lostPct = lt.tot.potential ? (100 * lt.tot.lost) / lt.tot.potential : null;
+    const cf = (aep.p50 * 1000) / (M.capacity_mw * 8766) * 100;
+    const elec = el.electrical_losses ? el.electrical_losses.electrical_loss_pct : null;
+    const tiles = [
+      ["Long-term AEP, P50", fmt(aep.p50, 2), "GWh/yr", "Wind farm, long-term corrected", "plant"],
+      ["AEP, P90 one year", fmt(aep.p90_1yr, 2), "GWh/yr", `P90 ten year ${fmt(aep.p90_10yr, 2)}`, "plant"],
+      ["Capacity factor at P50", fmt(cf, 1), "%", "8.2 MW installed", "plant"],
+      ["Energy availability", fmt(avail, 2), "%", "Downtime loss vs potential", "selection"],
+      ["Lost production", fmt(lostPct, 2), "%", `${fmt(lt.tot.lost, 0)} MWh of ${fmt(lt.tot.potential, 0)} MWh potential`, "selection"],
+      ["Electrical losses", fmt(elec, 2), "%", "Turbines to revenue meter", "plant"],
+    ];
+    document.getElementById("kpis").innerHTML = tiles.map(([l, v, u, n, s]) =>
+      `<div class="kpi"><span class="scope">${s === "selection" ? "Current selection" : "Wind farm"}</span><span class="label">${l}</span><span class="value">${v}<small>${u}</small></span><span class="note">${n}</span></div>`).join("");
+  }
+
+  function renderLosses(lt) {
+    const turbs = selTurb();
+    const traces = CLASSES.map((c, i) => ({
+      type: "bar", orientation: "h", name: CLASS_LABEL[c], y: turbs, x: turbs.map((t) => lt.byTurb[t][c]),
+      marker: { color: seriesColor(i), line: { color: css("--surface"), width: 2 } },
+      hovertemplate: `%{y}<br>${CLASS_LABEL[c]}: %{x:.1f} MWh<extra></extra>`,
+    }));
+    draw("c-loss-turbine", traces, { barmode: "stack", yaxis: { autorange: "reversed", type: "category" }, legend: { traceorder: "normal", y: -0.16 }, margin: { l: 70 } });
+    const months = MONTHS.slice(state.from, state.to + 1);
+    const mt = CLASSES.map((c, i) => ({
+      type: "bar", name: CLASS_LABEL[c], x: months.map(monthLabel), y: months.map((m) => lt.byMonth[m][c]),
+      marker: { color: seriesColor(i), line: { color: css("--surface"), width: 1 } }, showlegend: false,
+      hovertemplate: `%{x}<br>${CLASS_LABEL[c]}: %{y:.1f} MWh<extra></extra>`,
+    }));
+    draw("c-loss-month", mt, { barmode: "stack", yaxis: { title: { text: "MWh" } }, xaxis: { tickangle: -45, type: "category" }, margin: { b: 70 } });
+    const biggest = CLASSES.reduce((a, c) => (lt.tot[c] > lt.tot[a] ? c : a), CLASSES[0]);
+    const share = lt.tot.lost ? (100 * lt.tot[biggest]) / lt.tot.lost : 0;
+        const elp = S.production_2014_2015_mwh || {};
+    let check = "";
+    if (state.turbines.size === TURB.length && state.from === 0 && state.to === MONTHS.length - 1 && elp.plant_reported_availability_loss) {
+      check = ` The downtime estimate of <b>${fmt(lt.tot.downtime, 0)} MWh</b> sits close to the <b>${fmt(elp.plant_reported_availability_loss, 0)} MWh</b> availability loss the plant itself reported, an independent check on the method.`;
+    }
+    document.getElementById("f-losses").innerHTML = `For ${turbText()}, ${periodText()}: <b>${fmt(lt.tot.lost, 0)} MWh</b> lost, <b>${fmt((100 * lt.tot.lost) / (lt.tot.potential || 1), 2)} percent</b> of potential. ${CLASS_LABEL[biggest]} is the largest cause at ${fmt(share, 0)} percent of the loss.${check}`;
+  }
+
+  function renderDerates() {
+    const rc = recurrence();
+    const c1 = seriesColor(0);
+    draw("c-rec-hour", [{ type: "bar", x: [...Array(24).keys()], y: rc.hour, marker: { color: c1 }, hovertemplate: "%{x}:00<br>%{y:.2f} percent in derate<extra></extra>" }],
+      { xaxis: { title: { text: "Hour of day" }, dtick: 3 }, yaxis: { title: { text: "Percent" }, rangemode: "tozero" }, showlegend: false });
+    draw("c-rec-temp", [{ type: "bar", x: M.temp_labels, y: rc.band, marker: { color: c1 }, customdata: rc.bandN, hovertemplate: "%{x} C<br>%{y:.2f} percent in derate<br>%{customdata:,} producing intervals<extra></extra>" }],
+      { xaxis: { title: { text: "Outdoor temperature (C)" }, type: "category" }, yaxis: { title: { text: "Percent" }, rangemode: "tozero" }, showlegend: false });
+    const hot = rc.band[M.temp_labels.length - 1], mild = rc.band[4];
+    const peak = rc.hour.reduce((a, v, i) => (v != null && (rc.hour[a] == null || v > rc.hour[a]) ? i : a), 0);
+    let f = `Derates peak around <b>${peak}:00 local time</b>.`;
+    if (hot != null && mild) f += ` Above 30 C, <b>${fmt(hot, 1)} percent</b> of producing intervals were derated, against <b>${fmt(mild, 1)} percent</b> at 10 to 15 C (about ${fmt(hot / mild, 0)} times as often). A pattern tied to hot afternoons points to thermal protection of the drivetrain or converter rather than random faults.`;
+    else f += " Widen the period to include summer months to see the temperature pattern.";
+    document.getElementById("f-derates").innerHTML = f;
+
+    const sc = scenario();
+    const evs = sc.events.filter((e) => state.turbines.has(e.turbine) && inRange(e.month));
+    document.getElementById("ev-count").textContent = `${evs.length} in selection`;
+    const shown = evs.slice(0, 60);
+    if (!state.event || !evs.find((e) => e.id === state.event)) {
+      const first = evs.find((e) => e.has_series); state.event = first ? first.id : null;
+    }
+    const tb = document.querySelector("#ev-table tbody");
+    tb.innerHTML = shown.map((e) => `<tr data-id="${e.id}" class="${e.has_series ? "" : "nodata"} ${e.id === state.event ? "sel" : ""}" ${e.has_series ? 'tabindex="0"' : 'title="Trace kept for the 40 largest events only"'}>
+      <td>${e.turbine}</td><td class="num">${e.start}</td><td class="r">${fmt(e.duration_h, 1)}</td><td class="r">${fmt(e.wind, 1)}</td><td class="r">${e.temp == null ? "n/a" : fmt(e.temp, 1)}</td><td class="r">${fmt(e.lost_mwh, 2)}</td></tr>`).join("") ||
+      '<tr class="nodata"><td colspan="6">No derate events for this selection.</td></tr>';
+    tb.querySelectorAll("tr[data-id]").forEach((tr) => {
+      const go = () => { const e = sc.events.find((x) => x.id === tr.dataset.id); if (!e || !e.has_series) return; state.event = e.id; renderDerates(); };
+      tr.addEventListener("click", go);
+      tr.addEventListener("keydown", (k) => { if (k.key === "Enter" || k.key === " ") { k.preventDefault(); go(); } });
+    });
+    renderEvent();
+  }
+
+  function renderEvent() {
+    const sc = scenario();
+    const e = sc.events.find((x) => x.id === state.event);
+    const s = e ? sc.series[e.id] : null;
+    if (!e || !s) { document.getElementById("ev-title").textContent = "Select an event to see power, wind and pitch"; Plotly.purge("c-event"); return; }
+    document.getElementById("ev-title").textContent = `${e.turbine}, ${e.start} to ${e.end.slice(11)}: ${fmt(e.duration_h, 1)} h, ${fmt(e.lost_mwh, 2)} MWh lost (shaded)`;
+    const c1 = seriesColor(0), c2 = seriesColor(1);
+    const traces = [
+      { x: s.t, y: s.e, name: "Expected", mode: "lines", line: { color: c2, width: 2 }, hovertemplate: "%{x}<br>Expected %{y:,} kW<extra></extra>" },
+      { x: s.t, y: s.p, name: "Actual", mode: "lines", line: { color: c1, width: 2 }, hovertemplate: "%{x}<br>Actual %{y:,} kW<extra></extra>" },
+      { x: s.t, y: s.ws, name: "Wind", mode: "lines", line: { color: c1, width: 2 }, yaxis: "y2", showlegend: false, hovertemplate: "%{x}<br>Wind %{y:.1f} m/s<extra></extra>" },
+      { x: s.t, y: s.pitch, name: "Pitch", mode: "lines", line: { color: c1, width: 2 }, yaxis: "y3", showlegend: false, hovertemplate: "%{x}<br>Pitch %{y:.1f} deg<extra></extra>" },
+    ];
+    const line = css("--line"), ink2 = css("--ink-2");
+    const ax = (domain) => ({ domain, gridcolor: line, linecolor: line, zerolinecolor: line, tickfont: { color: ink2 }, automargin: true });
+    const lab = (y, text) => ({ xref: "paper", yref: "paper", x: 0, y, text, showarrow: false, xanchor: "left", yanchor: "bottom", font: { size: 11, color: ink2 } });
+    draw("c-event", traces, {
+      xaxis: { type: "date", anchor: "y3" },
+      yaxis: ax([0.5, 0.94]), yaxis2: ax([0.27, 0.41]), yaxis3: ax([0, 0.18]),
+      annotations: [lab(0.94, "Power (kW)"), lab(0.41, "Wind speed (m/s)"), lab(0.18, "Pitch angle (deg)")],
+      shapes: [{ type: "rect", xref: "x", yref: "paper", x0: e.start, x1: e.end, y0: 0, y1: 1, fillcolor: css("--surface-2"), opacity: 0.9, line: { width: 0 }, layer: "below" }],
+      legend: { orientation: "h", x: 1, xanchor: "right", y: 1.06 }, margin: { t: 28, b: 36, l: 48 }, hovermode: "x unified",
+    });
+  }
+
+  function renderCurves() {
+    const turbs = selTurb(), bins = D.curves.bins;
+    let traces = [];
+    if (turbs.length === 1) {
+      const t = turbs[0], sc = D.scatter[t];
+      const ex = { x: [], y: [] }, nm = { x: [], y: [] };
+      sc.ws.forEach((w, i) => { (sc.n[i] ? nm : ex).x.push(w); (sc.n[i] ? nm : ex).y.push(sc.p[i]); });
+      traces = [
+        { type: "scattergl", mode: "markers", name: "Excluded: downtime, derate, curtailment, outliers", x: ex.x, y: ex.y, marker: { color: css("--muted-point"), size: 4 }, hovertemplate: "%{x:.1f} m/s, %{y:,} kW<extra>Excluded</extra>" },
+        { type: "scattergl", mode: "markers", name: "Normal operation", x: nm.x, y: nm.y, marker: { color: seriesColor(0), size: 4, opacity: 0.45 }, hovertemplate: "%{x:.1f} m/s, %{y:,} kW<extra>Normal</extra>" },
+        { mode: "lines", name: "Reference curve (bin median)", x: bins, y: D.curves[t], line: { color: css("--ink"), width: 2.5 }, connectgaps: false, hovertemplate: "%{x:.2f} m/s: %{y:,} kW<extra>Reference</extra>" },
+      ];
+      document.getElementById("f-curves").innerHTML = `<b>${t}</b>: a random sample of ${fmt(sc.ws.length)} valid 10-minute intervals. Blue points passed the normal operation filter and set the reference curve; grey points were excluded. Pick another single turbine, or all, to compare curves.`;
+    } else {
+      traces = turbs.map((t) => ({ mode: "lines", name: t, x: bins, y: D.curves[t], line: { color: seriesColor(TURB.indexOf(t)), width: 2.5 }, connectgaps: false, hovertemplate: `${t}: %{x:.2f} m/s, %{y:,} kW<extra></extra>` }));
+      document.getElementById("f-curves").innerHTML = `Reference power curves for ${turbText()}, built from normal operation only, with wind speed normalised to the site mean air density of <b>${fmt((S.data || {}).reference_air_density_kg_m3, 3)} kg per cubic metre</b>. Select one turbine to see the 10-minute data behind its curve.`;
+    }
+    draw("c-curve", traces, { xaxis: { title: { text: "Wind speed, density normalised (m/s)" }, range: [0, 20] }, yaxis: { title: { text: "Active power (kW)" }, range: [-60, 2200] }, legend: { y: -0.18 } });
+  }
+
+  function renderAep() {
+    const a = D.aep;
+    const tiles = [["P50", a.p50], ["P90 long-term mean", a.p90_lt], ["P90 ten year", a.p90_10yr], ["P90 one year", a.p90_1yr]];
+    document.getElementById("pvals").innerHTML = tiles.map(([k, v]) => `<div class="pval"><div class="k">${k}</div><div class="v">${fmt(v, 2)} <small style="font-size:13px;font-weight:600">GWh/yr</small></div></div>`).join("");
+    const y = a.gross_mwh_day;
+    const prods = [["era5", "ERA5 (100 m)", 0], ["merra2", "MERRA-2 (50 m)", 1]];
+    const traces = [];
+    prods.forEach(([k, label, i]) => {
+      const f = a.fits.find((x) => x.product === k), xs = a["ws_" + k];
+      traces.push({ mode: "markers", name: `${label}, R squared ${fmt(f.r_squared, 2)}`, x: xs, y, customdata: a.months.map(monthLabel), marker: { color: seriesColor(i), size: 9, line: { color: css("--surface"), width: 1.5 } }, hovertemplate: "%{customdata}<br>%{x:.2f} m/s, %{y:.1f} MWh per day<extra></extra>" });
+      const lo = Math.min(...xs) - 0.2, hi = Math.max(...xs) + 0.2;
+      traces.push({ mode: "lines", x: [lo, hi], y: [lo, hi].map((v) => (f.intercept_kwh_per_day + f.slope_kwh_per_day_per_ms * v) / 1000), line: { color: seriesColor(i), width: 2 }, showlegend: false, hoverinfo: "skip" });
+    });
+    draw("c-reg", traces, { xaxis: { title: { text: "Monthly mean reanalysis wind speed (m/s)" } }, yaxis: { title: { text: "Gross energy (MWh per day)" } }, legend: { y: -0.26 } });
+    const e = a.hist_edges, mids = e.slice(0, -1).map((v, i) => (v + e[i + 1]) / 2);
+    const ink = css("--ink"), ink2 = css("--ink-2");
+    const openoa = (S.aep || {}).openoa_p50_gwh;
+    const shapes = [[a.p50, ink, "solid"], [a.p90_lt, ink, "dot"]].map(([x, c, d]) => ({ type: "line", x0: x, x1: x, yref: "paper", y0: 0, y1: 1, line: { color: c, width: 1.5, dash: d } }));
+    const ann = [{ x: a.p50, yref: "paper", y: 1, text: `P50 ${fmt(a.p50, 2)}`, showarrow: false, xanchor: "left", yanchor: "top", font: { color: ink, size: 11 } },
+                 { x: a.p90_lt, yref: "paper", y: 0.9, text: `P90 ${fmt(a.p90_lt, 2)}`, showarrow: false, xanchor: "right", yanchor: "top", font: { color: ink, size: 11 } }];
+    if (openoa) { shapes.push({ type: "line", x0: openoa, x1: openoa, yref: "paper", y0: 0, y1: 1, line: { color: ink2, width: 1.5, dash: "dash" } });
+      ann.push({ x: openoa, yref: "paper", y: 0.72, text: `OpenOA P50 ${fmt(openoa, 2)}`, showarrow: false, xanchor: "right", yanchor: "top", font: { color: ink2, size: 11 } }); }
+    draw("c-hist", [{ type: "bar", x: mids, y: a.hist_counts, marker: { color: seriesColor(0) }, hovertemplate: "%{x:.2f} GWh/yr: %{y} draws<extra></extra>" }],
+      { xaxis: { title: { text: "Net AEP (GWh per year)" } }, yaxis: { title: { text: "Draws" } }, shapes, annotations: ann, showlegend: false, bargap: 0.05 });
+    const diff = (S.aep || {}).difference_vs_openoa_pct;
+    document.getElementById("f-aep").innerHTML = `Long-term corrected net energy is <b>${fmt(a.p50, 2)} GWh per year at P50</b> (capacity factor ${fmt((a.p50 * 1000) / (M.capacity_mw * 8766) * 100, 1)} percent), with long-term uncertainty of ${fmt(a.unc_lt_pct, 1)} percent and inter-annual variability of ${fmt(a.iav_pct, 1)} percent.` +
+      (openoa ? ` NREL's OpenOA gives <b>${fmt(openoa, 2)} GWh</b> on the same data, a difference of ${fmt(diff, 1)} percent.` : "") + " These values are for the whole wind farm and do not change with the filters.";
+  }
+
+  function renderQuality() {
+    const q = D.quality, turbs = selTurb();
+    const months = q.months.slice(state.from, state.to + 1);
+    const z = turbs.map((t) => q.valid_pct[q.turbines.indexOf(t)].slice(state.from, state.to + 1));
+    const scale = [[0, css("--seq-0")], [0.25, css("--seq-1")], [0.5, css("--seq-2")], [0.75, css("--seq-3")], [1, css("--seq-4")]];
+    draw("c-quality", [{ type: "heatmap", x: months.map(monthLabel), y: turbs, z, zmin: 90, zmax: 100, colorscale: scale, xgap: 2, ygap: 2,
+      colorbar: { title: { text: "Valid %", font: { color: css("--ink-2") } }, tickfont: { color: css("--ink-2") }, outlinewidth: 0, thickness: 12 },
+      hovertemplate: "%{y}, %{x}: %{z:.1f} percent valid<extra></extra>" }], { xaxis: { tickangle: -45, type: "category", showgrid: false }, yaxis: { type: "category", showgrid: false, autorange: "reversed" }, margin: { b: 70, l: 70 } });
+    const d = S.data || {};
+    document.getElementById("f-quality").innerHTML = `<b>${fmt(d.valid_pct, 2)} percent</b> of ${fmt(d.intervals)} turbine 10-minute intervals passed the data checks. ${fmt(d.duplicates_removed)} duplicate records around daylight saving changes were removed, and implausible pitch and temperature readings were blanked rather than discarding the whole interval.`;
+  }
+
+  function render() {
+    const lt = lossTotals();
+    renderKpis(lt); renderLosses(lt); renderDerates(); renderCurves(); renderQuality();
+  }
+
+  buildFilters();
+  renderAep();
+  render();
+  const rerender = () => { renderAep(); render(); };
+  try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerender); } catch (e) {}
+  new MutationObserver(rerender).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+})();
+</script>
+</body>
+</html>
